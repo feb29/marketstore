@@ -5,6 +5,7 @@ import (
 	"fmt"
 	goio "io"
 	"os"
+	"strings"
 	"time"
 
 	"bytes"
@@ -326,6 +327,12 @@ func (wf *WALFileType) writePrimary(keyPath string, writes []offsetIndexBuffer, 
 	for _, buffer := range writes {
 		switch recordType {
 		case io.FIXED:
+			if strings.Contains(keyPath, "1Min") {
+				t := io.IndexToTime(buffer.Index(), time.Minute, 2018)
+				if t.Year() != 2018 {
+					glog.Errorf("INVALID 1MIN BAR DETECTED IN PRIMARY WRITE - TIMESTAMP: %v OFFSET: %v PAYLOAD SIZE: %v", t, buffer.Offset, len(buffer.Payload()))
+				}
+			}
 			err = WriteBufferToFile(fp, buffer)
 		case io.VARIABLE:
 			err = WriteBufferToFileIndirect(fp.(*os.File), buffer)

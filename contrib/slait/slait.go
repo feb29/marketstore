@@ -180,6 +180,13 @@ func (ss *SlaitSubscriber) write() {
 	for {
 		select {
 		case pair := <-ss.pairC:
+			epoch := pair.columns.GetByName("Epoch")
+			for _, e := range epoch.([]int64) {
+				t := time.Unix(e, 0)
+				if t.Year() != 2018 {
+					glog.Errorf("%v RECEIVED GARBAGE TIMESTAMP TO SLAIT FLUSH ROUTINE: %v", pair.key, t)
+				}
+			}
 			csm.AddColumnSeries(*pair.key, pair.columns)
 			buffered++
 			if buffered > 100 {
@@ -224,6 +231,9 @@ func (ss *SlaitSubscriber) handlePublication(p cache.Publication) (*keyColumnPai
 				t, err := time.Parse(time.RFC3339, str)
 				if err != nil {
 					return nil, err
+				}
+				if t.Year() != 2018 {
+					glog.Errorf("%v RECEIEVED GARBAGE TIMESTAMP IN SLAIT PUBLICATION HANDLER: %v", fmt.Sprintf("%v/1Min/%v", p.Partition, ss.attributeGroup), t)
 				}
 				v = reflect.ValueOf(t.Unix())
 			} else {

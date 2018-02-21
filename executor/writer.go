@@ -83,6 +83,9 @@ func (w *Writer) WriteRecords(ts []time.Time, data []byte) {
 		record := data[pos : pos+rowLen]
 		t := ts[i]
 		year := int16(t.Year())
+		if year != 2018 {
+			glog.Errorf("%v RECEIVE GARBAGE TIMESTAMP IN WRITERECORDS: %v", t, w.tbi.Path)
+		}
 		if year != w.tbi.Year {
 			if err := w.AddNewYearFile(year); err != nil {
 				panic(err)

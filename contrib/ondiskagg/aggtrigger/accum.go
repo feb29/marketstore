@@ -128,9 +128,9 @@ func (ag *accumGroup) addColumns(cs *io.ColumnSeries) {
 
 func newAccumulator(cs *io.ColumnSeries, param accumParam) *accumulator {
 	var ifunc, iout interface{}
+	inColumn := cs.GetColumn(param.inputName)
 	switch param.funcName {
 	case "first":
-		inColumn := cs.GetColumn(param.inputName)
 		switch inColumn.(type) {
 		case []float32:
 			ifunc = firstFloat32
@@ -143,7 +143,6 @@ func newAccumulator(cs *io.ColumnSeries, param accumParam) *accumulator {
 			return nil
 		}
 	case "max":
-		inColumn := cs.GetColumn(param.inputName)
 		switch inColumn.(type) {
 		case []float32:
 			ifunc = maxFloat32
@@ -156,7 +155,6 @@ func newAccumulator(cs *io.ColumnSeries, param accumParam) *accumulator {
 			return nil
 		}
 	case "min":
-		inColumn := cs.GetColumn(param.inputName)
 		switch inColumn.(type) {
 		case []float32:
 			ifunc = minFloat32
@@ -169,7 +167,6 @@ func newAccumulator(cs *io.ColumnSeries, param accumParam) *accumulator {
 			return nil
 		}
 	case "last":
-		inColumn := cs.GetColumn(param.inputName)
 		switch inColumn.(type) {
 		case []float32:
 			ifunc = lastFloat32

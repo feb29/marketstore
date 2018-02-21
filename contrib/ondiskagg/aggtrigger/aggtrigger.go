@@ -26,6 +26,7 @@ package aggtrigger
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -187,6 +188,28 @@ func (s *OnDiskAggTrigger) processFor(timeframe, keyPath string, headIndex, tail
 	outCsm := io.NewColumnSeriesMap()
 	outCsm.AddColumnSeries(*targetTbk, outCs)
 	epoch := outCs.GetEpoch()
+	for i, epoch := range outCs.GetEpoch() {
+		t := time.Unix(epoch, 0)
+		if math.Abs(t.Sub(time.Now()).Hours()) > 87600 {
+			o := outCs.GetColumn("Open").([]float32)[i]
+			h := outCs.GetColumn("High").([]float32)[i]
+			l := outCs.GetColumn("Low").([]float32)[i]
+			c := outCs.GetColumn("Close").([]float32)[i]
+			v := outCs.GetColumn("Volume").([]int32)[i]
+			glog.Errorf("AGGTRIGGER | Invalid bar detected for: %v - timestamp: %v open: %v high: %v low: %v close: %v volume: %v\n", targetTbk, t, o, h, l, c, v)
+			e := cs.GetEpoch()
+			opens := cs.GetColumn("Open").([]float32)
+			highs := cs.GetColumn("High").([]float32)
+			lows := cs.GetColumn("Low").([]float32)
+			closes := cs.GetColumn("Close").([]float32)
+			vols := cs.GetColumn("Volume").([]int32)
+			glog.Errorf("AGGTRIGGER | %v column lengths: epoch: %v open: %v high: %v low: %v close: %v volume: %v\n",
+				targetTbk, len(e), len(opens), len(highs), len(lows), len(closes), len(vols))
+			glog.Errorf("AGGTRIGGER | %v invalid bar detected while aggregating columns: epoch: %v open: %v high: %v low: %v close: %v volume: %v\n",
+				targetTbk, e, opens, highs, lows, closes, vols,
+			)
+		}
+	}
 	if err := executor.WriteCSM(outCsm, false); err != nil {
 		glog.Errorf(
 			"failed to write %v CSM from: %v to %v - Error: %v",
@@ -214,6 +237,12 @@ func aggregate(cs *io.ColumnSeries, tbk *io.TimeBucketKey) *io.ColumnSeries {
 	ts := cs.GetTime()
 	outEpoch := make([]int64, 0)
 
+	for _, t := range ts {
+		if math.Abs(t.Sub(time.Now()).Hours()) > 87600 {
+			glog.Errorf("Invalid INPUT aggregate timestamp: %v\n", t)
+		}
+	}
+
 	groupKey := timeWindow.Truncate(ts[0])
 	groupStart := 0
 	// accumulate inputs.  Since the input is ordered by
@@ -221,6 +250,9 @@ func aggregate(cs *io.ColumnSeries, tbk *io.TimeBucketKey) *io.ColumnSeries {
 	for i, t := range ts {
 		if !timeWindow.IsWithin(t, groupKey) {
 			// Emit new row and re-init aggState
+			if math.Abs(groupKey.Sub(time.Now()).Hours()) > 87600 {
+				glog.Errorf("Invalid IN-LOOP GROUPKEY aggregate timestamp: %v\n", groupKey)
+			}
 			outEpoch = append(outEpoch, groupKey.Unix())
 			accumGroup.apply(groupStart, i)
 			groupKey = timeWindow.Truncate(t)
@@ -228,6 +260,9 @@ func aggregate(cs *io.ColumnSeries, tbk *io.TimeBucketKey) *io.ColumnSeries {
 		}
 	}
 	// accumulate any remaining values if not yet
+	if math.Abs(groupKey.Sub(time.Now()).Hours()) > 87600 {
+		glog.Errorf("Invalid FINAL GROUPKEY aggregate timestamp: %v\n", groupKey)
+	}
 	outEpoch = append(outEpoch, groupKey.Unix())
 	accumGroup.apply(groupStart, len(ts))
 

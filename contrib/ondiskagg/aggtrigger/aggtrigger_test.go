@@ -136,6 +136,7 @@ func (t *TestSuite) TestFire(c *C) {
 	high := []float32{1.1, 2.1, 3.1, 4.1, 5.1, 1.1, 2.1, 3.1, 4.1, 5.1}
 	low := []float32{0.9, 1.9, 2.9, 3.9, 4.9, 0.9, 1.9, 2.9, 3.9, 4.9}
 	close := []float32{1.05, 2.05, 3.05, 4.05, 5.05, 1.05, 2.05, 3.05, 4.05, 5.05}
+	volume := []int32{10, 20, 30, 40, 50, 10, 20, 30, 40, 50}
 
 	cs := io.NewColumnSeries()
 	cs.AddColumn("Epoch", epoch)
@@ -143,7 +144,8 @@ func (t *TestSuite) TestFire(c *C) {
 	cs.AddColumn("High", high)
 	cs.AddColumn("Low", low)
 	cs.AddColumn("Close", close)
-	tbk := io.NewTimeBucketKey("TEST/1Min/OHLC")
+	cs.AddColumn("Volume", volume)
+	tbk := io.NewTimeBucketKey("TEST/1Min/OHLCV")
 	csm := io.NewColumnSeriesMap()
 	csm.AddColumnSeries(*tbk, cs)
 	err = executor.WriteCSM(csm, false)
@@ -156,12 +158,12 @@ func (t *TestSuite) TestFire(c *C) {
 			utils.InstanceConfig.Timezone), time.Minute)
 		indexes = append(indexes, index)
 	}
-	trig.Fire("TEST/1Min/OHLC/2017.bin", indexes)
+	trig.Fire("TEST/1Min/OHLCV/2017.bin", indexes)
 
 	// verify 5Min agg
 	catalogDir := executor.ThisInstance.CatalogDir
 	q := planner.NewQuery(catalogDir)
-	tbk5 := io.NewTimeBucketKey("TEST/5Min/OHLC")
+	tbk5 := io.NewTimeBucketKey("TEST/5Min/OHLCV")
 	q.AddTargetKey(tbk5)
 	q.SetRange(planner.MinTime, planner.MaxTime)
 	parsed, err := q.Parse()
@@ -175,7 +177,7 @@ func (t *TestSuite) TestFire(c *C) {
 	c.Check(cs5.Len(), Equals, 6)
 
 	// verify 1D agg
-	tbk1D := io.NewTimeBucketKey("TEST/1D/OHLC")
+	tbk1D := io.NewTimeBucketKey("TEST/1D/OHLCV")
 	q = planner.NewQuery(catalogDir)
 	q.AddTargetKey(tbk1D)
 	q.SetRange(planner.MinTime, planner.MaxTime)
