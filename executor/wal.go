@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/alpacahq/marketstore/executor/buffile"
 	"github.com/alpacahq/marketstore/utils/io"
 	. "github.com/alpacahq/marketstore/utils/log"
 	"github.com/golang/glog"
@@ -309,14 +308,14 @@ func (wf *WALFileType) writePrimary(keyPath string, writes []offsetIndexBuffer, 
 		goio.WriterAt
 		goio.Closer
 	}
-	const batchThreshold = 100
+	// const batchThreshold = 100
 	var fp WriteAtCloser
 	var err error
-	if recordType == io.FIXED && len(writes) >= batchThreshold {
-		fp, err = buffile.New(fullPath)
-	} else {
-		fp, err = os.OpenFile(fullPath, os.O_RDWR, 0700)
-	}
+	// if recordType == io.FIXED && len(writes) >= batchThreshold {
+	// 	fp, err = buffile.New(fullPath)
+	// } else {
+	fp, err = os.OpenFile(fullPath, os.O_RDWR, 0700)
+	// }
 	if err != nil {
 		// this is critical, in fact, since tx has been committed
 		glog.Errorf("cannot open file %s for write: %v", fullPath, err)
@@ -325,14 +324,13 @@ func (wf *WALFileType) writePrimary(keyPath string, writes []offsetIndexBuffer, 
 	defer fp.Close()
 
 	for _, buffer := range writes {
+		if strings.Contains(keyPath, "1Min") {
+			if buffer.Offset() != io.IndexToOffset(buffer.Index(), 32) {
+				glog.Errorf("INVALID 1Min BAR DETECTED: %v - INDEX: %v OFFSET: %v\n", buffer.Index(), buffer.Offset())
+			}
+		}
 		switch recordType {
 		case io.FIXED:
-			if strings.Contains(keyPath, "1Min") {
-				t := io.IndexToTime(buffer.Index(), time.Minute, 2018)
-				if t.Year() != 2018 {
-					glog.Errorf("INVALID 1MIN BAR DETECTED IN PRIMARY WRITE - TIMESTAMP: %v OFFSET: %v PAYLOAD SIZE: %v", t, buffer.Offset, len(buffer.Payload()))
-				}
-			}
 			err = WriteBufferToFile(fp, buffer)
 		case io.VARIABLE:
 			err = WriteBufferToFileIndirect(fp.(*os.File), buffer)

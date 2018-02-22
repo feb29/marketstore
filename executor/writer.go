@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"encoding/hex"
 	"fmt"
 	stdio "io"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/alpacahq/marketstore/catalog"
+	"github.com/alpacahq/marketstore/utils"
 	"github.com/alpacahq/marketstore/utils/io"
 	. "github.com/alpacahq/marketstore/utils/io"
 	"github.com/golang/glog"
@@ -66,6 +68,22 @@ func (w *Writer) WriteRecords(ts []time.Time, data []byte) {
 		/*
 			Incoming data records ALWAYS have the 8-byte Epoch column first
 		*/
+
+		if strings.Contains(w.tbi.Path, "1Min") {
+			epoch := io.ToInt64(record[0:8])
+			ts := time.Unix(epoch, 0)
+			idx := io.TimeToIndex(ts)
+			if idx != index {
+				glog.Errorf(
+					"formatRecord | indexes not equal! %v != %v\n (ts from epoch: %v, supplied ts: %v)\n",
+					idx,
+					index,
+					ts,
+					t,
+				)
+			}
+		}
+
 		record = record[8:] // Chop off the Epoch column
 		if w.tbi.GetRecordType() == VARIABLE {
 			/*
@@ -81,6 +99,12 @@ func (w *Writer) WriteRecords(ts []time.Time, data []byte) {
 	for i := 0; i < numRows; i++ {
 		pos := i * rowLen
 		record := data[pos : pos+rowLen]
+		suspiciousBuf := data[pos-4 : pos+4]
+		if time.Unix(io.ToInt64(suspiciousBuf), 0).In(utils.InstanceConfig.Timezone).Year() == 2018 {
+			glog.Errorf("WriteRecords | Found suspcious record @ %v\n", ts[i])
+			glog.Errorf("DUMP: %v\n", hex.Dump(data))
+		}
+
 		t := ts[i]
 		year := int16(t.Year())
 		if year != 2018 {
@@ -144,6 +168,10 @@ func AppendIntervalTicks(buf []byte, t time.Time, index, intervalsPerDay int64) 
 func WriteBufferToFile(fp stdio.WriterAt, buffer offsetIndexBuffer) error {
 	offset := buffer.Offset()
 	data := buffer.IndexAndPayload()
+	if (offset-Headersize)%32 != 0 {
+		glog.Errorf("WriteBufferToFile | Suspicious record detected - Offest: %v Index: %v\n", offset, buffer.Index())
+		glog.Errorf("DUMP: %v\n", hex.Dump(buffer))
+	}
 	_, err := fp.WriteAt(data, offset)
 	return err
 }
