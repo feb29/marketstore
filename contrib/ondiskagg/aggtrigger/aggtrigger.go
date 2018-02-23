@@ -237,12 +237,6 @@ func aggregate(cs *io.ColumnSeries, tbk *io.TimeBucketKey) *io.ColumnSeries {
 	ts := cs.GetTime()
 	outEpoch := make([]int64, 0)
 
-	for _, t := range ts {
-		if math.Abs(t.Sub(time.Now()).Hours()) > 87600 {
-			glog.Errorf("Invalid INPUT aggregate timestamp: %v\n", t)
-		}
-	}
-
 	groupKey := timeWindow.Truncate(ts[0])
 	groupStart := 0
 	// accumulate inputs.  Since the input is ordered by
@@ -250,9 +244,6 @@ func aggregate(cs *io.ColumnSeries, tbk *io.TimeBucketKey) *io.ColumnSeries {
 	for i, t := range ts {
 		if !timeWindow.IsWithin(t, groupKey) {
 			// Emit new row and re-init aggState
-			if math.Abs(groupKey.Sub(time.Now()).Hours()) > 87600 {
-				glog.Errorf("Invalid IN-LOOP GROUPKEY aggregate timestamp: %v\n", groupKey)
-			}
 			outEpoch = append(outEpoch, groupKey.Unix())
 			accumGroup.apply(groupStart, i)
 			groupKey = timeWindow.Truncate(t)
@@ -260,9 +251,6 @@ func aggregate(cs *io.ColumnSeries, tbk *io.TimeBucketKey) *io.ColumnSeries {
 		}
 	}
 	// accumulate any remaining values if not yet
-	if math.Abs(groupKey.Sub(time.Now()).Hours()) > 87600 {
-		glog.Errorf("Invalid FINAL GROUPKEY aggregate timestamp: %v\n", groupKey)
-	}
 	outEpoch = append(outEpoch, groupKey.Unix())
 	accumGroup.apply(groupStart, len(ts))
 
